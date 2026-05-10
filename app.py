@@ -254,6 +254,11 @@ def resolve_font(font_name: str, font_size: int, bold: bool = False, italic: boo
         BASE_DIR / "static" / "fonts",
         # Common Linux locations (Vercel/containers)
         Path("/usr/share/fonts"),
+        Path("/usr/share/fonts/truetype"),
+        Path("/usr/share/fonts/truetype/dejavu"),
+        Path("/usr/share/fonts/truetype/liberation"),
+        Path("/usr/share/fonts/truetype/liberation2"),
+        Path("/usr/share/fonts/truetype/carlito"),
         Path("/usr/local/share/fonts"),
     ]
 
