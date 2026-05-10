@@ -155,41 +155,106 @@ def parse_csv_bytes(csv_bytes: bytes):
 
 
 def resolve_font(font_name: str, font_size: int, bold: bool = False, italic: bool = False):
-    """Load a matching TrueType font from common system paths with fallback."""
-    windows_font_map = {
-        "Arial": "arial.ttf",
-        "Times New Roman": "times.ttf",
-        "Calibri": "calibri.ttf",
-        "Georgia": "georgia.ttf",
-        "Verdana": "verdana.ttf",
-        "Trebuchet MS": "trebuc.ttf",
+    """Load a matching TrueType font from common system paths with fallback.
+
+    Note: Pillow's `ImageFont.load_default()` ignores size and will produce tiny text
+    on Linux deployments (e.g. Vercel). Prefer real TTF fonts whenever possible.
+    """
+
+    requested = (font_name or "Arial").strip()
+
+    # Candidate font families across OSes. The first available file wins.
+    family_files = {
+        "Arial": [
+            "arial.ttf",
+            "Arial.ttf",
+            "LiberationSans-Regular.ttf",
+            "DejaVuSans.ttf",
+        ],
+        "Calibri": [
+            "calibri.ttf",
+            "Calibri.ttf",
+            "Carlito-Regular.ttf",
+            "DejaVuSans.ttf",
+        ],
+        "Verdana": [
+            "verdana.ttf",
+            "Verdana.ttf",
+            "DejaVuSans.ttf",
+        ],
+        "Trebuchet MS": [
+            "trebuc.ttf",
+            "Trebuchet MS.ttf",
+            "DejaVuSans.ttf",
+        ],
+        "Georgia": [
+            "georgia.ttf",
+            "Georgia.ttf",
+            "DejaVuSerif.ttf",
+        ],
+        "Times New Roman": [
+            "times.ttf",
+            "Times New Roman.ttf",
+            "LiberationSerif-Regular.ttf",
+            "DejaVuSerif.ttf",
+        ],
     }
 
-    font_file = windows_font_map.get(font_name, "arial.ttf")
+    base_candidates = family_files.get(requested, family_files["Arial"])
 
-    # Attempt style-specific variants if available.
-    style_candidates = []
-    if bold and italic:
-        style_candidates.extend([
-            font_file.replace(".ttf", "bi.ttf"),
-            font_file.replace(".ttf", "z.ttf"),
-        ])
-    elif bold:
-        style_candidates.extend([
-            font_file.replace(".ttf", "bd.ttf"),
-            font_file.replace(".ttf", "b.ttf"),
-        ])
-    elif italic:
-        style_candidates.extend([
-            font_file.replace(".ttf", "i.ttf"),
-            font_file.replace(".ttf", "it.ttf"),
-        ])
+    # Add style variants for common families (Linux-friendly first).
+    styled_candidates: list[str] = []
+    for base in base_candidates:
+        name = base
+        if name.lower().startswith("dejavusans"):
+            if bold and italic:
+                styled_candidates.append("DejaVuSans-BoldOblique.ttf")
+            elif bold:
+                styled_candidates.append("DejaVuSans-Bold.ttf")
+            elif italic:
+                styled_candidates.append("DejaVuSans-Oblique.ttf")
+        if name.lower().startswith("dejavuserif"):
+            if bold and italic:
+                styled_candidates.append("DejaVuSerif-BoldItalic.ttf")
+            elif bold:
+                styled_candidates.append("DejaVuSerif-Bold.ttf")
+            elif italic:
+                styled_candidates.append("DejaVuSerif-Italic.ttf")
+        if name.lower().startswith("liberationsans"):
+            if bold and italic:
+                styled_candidates.append("LiberationSans-BoldItalic.ttf")
+            elif bold:
+                styled_candidates.append("LiberationSans-Bold.ttf")
+            elif italic:
+                styled_candidates.append("LiberationSans-Italic.ttf")
+        if name.lower().startswith("liberationserif"):
+            if bold and italic:
+                styled_candidates.append("LiberationSerif-BoldItalic.ttf")
+            elif bold:
+                styled_candidates.append("LiberationSerif-Bold.ttf")
+            elif italic:
+                styled_candidates.append("LiberationSerif-Italic.ttf")
 
-    candidates = style_candidates + [font_file]
+        # Windows-style suffix patterns, kept for local Windows runs.
+        if name.lower().endswith(".ttf"):
+            stem = name[:-4]
+            if bold and italic:
+                styled_candidates.extend([f"{stem}bi.ttf", f"{stem}z.ttf"])
+            elif bold:
+                styled_candidates.extend([f"{stem}bd.ttf", f"{stem}b.ttf"])
+            elif italic:
+                styled_candidates.extend([f"{stem}i.ttf", f"{stem}it.ttf"])
+
+    candidates = styled_candidates + base_candidates
 
     search_paths = [
+        # Windows
         Path("C:/Windows/Fonts"),
+        # Optional bundled fonts in repo
         BASE_DIR / "static" / "fonts",
+        # Common Linux locations (Vercel/containers)
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
     ]
 
     for root in search_paths:
@@ -201,7 +266,16 @@ def resolve_font(font_name: str, font_size: int, bold: bool = False, italic: boo
                 except OSError:
                     continue
 
-    # Final fallback to PIL's default font.
+    # As a last resort, try a font name that Pillow can often resolve on Linux.
+    for fallback_name in [
+        "DejaVuSans.ttf",
+        "DejaVuSerif.ttf",
+    ]:
+        try:
+            return ImageFont.truetype(fallback_name, font_size)
+        except OSError:
+            continue
+
     return ImageFont.load_default()
 
 
