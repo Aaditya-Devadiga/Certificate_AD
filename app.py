@@ -363,26 +363,30 @@ def draw_text_boxes(base_image: Image.Image, text_boxes: list, row_data: dict):
             wrapped_lines.append(current)
 
         final_text = "\n".join(wrapped_lines)
-        # Treat (x, y) as the top edge of the box in template pixel space.
-        # Use top anchors so the UI (CSS top/left) matches backend rendering.
+        # Pillow builds in the wild vary: some versions don't support `anchor=`
+        # for `multiline_text`. Compute alignment manually inside the box.
+        spacing = 4
+        try:
+            bbox = draw.multiline_textbbox((0, 0), final_text, font=font, spacing=spacing, align=align)
+        except Exception:
+            bbox = draw.textbbox((0, 0), final_text, font=font)
+
+        text_width = max(0, int(bbox[2] - bbox[0]))
+
         if align == "left":
             draw_x = x
-            anchor = "lt"
         elif align == "right":
-            draw_x = x + width
-            anchor = "rt"
+            draw_x = x + max(0, width - text_width)
         else:
-            draw_x = x + (width / 2)
-            anchor = "mt"
+            draw_x = x + max(0, (width - text_width) / 2)
 
         draw.multiline_text(
             (draw_x, y),
             final_text,
             font=font,
             fill=ImageColor.getrgb(color),
-            spacing=4,
+            spacing=spacing,
             align=align,
-            anchor=anchor,
         )
 
 
