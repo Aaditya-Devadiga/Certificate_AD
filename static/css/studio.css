@@ -279,7 +279,7 @@ textarea { resize: vertical; }
 }
 
 templateImage, #templateImage { display: none; max-width: 100%; height: auto; }
-#overlay { position: absolute; inset: 0; }
+#overlay { position: absolute; top: 0; left: 0; }
 
 .text-box {
   position: absolute;
