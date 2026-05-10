@@ -363,15 +363,17 @@ def draw_text_boxes(base_image: Image.Image, text_boxes: list, row_data: dict):
             wrapped_lines.append(current)
 
         final_text = "\n".join(wrapped_lines)
+        # Treat (x, y) as the top edge of the box in template pixel space.
+        # Use top anchors so the UI (CSS top/left) matches backend rendering.
         if align == "left":
             draw_x = x
-            anchor = "la"
+            anchor = "lt"
         elif align == "right":
             draw_x = x + width
-            anchor = "ra"
+            anchor = "rt"
         else:
             draw_x = x + (width / 2)
-            anchor = "ma"
+            anchor = "mt"
 
         draw.multiline_text(
             (draw_x, y),

@@ -4,6 +4,9 @@
 const state = {
   templateFile: null,
   templateObjectUrl: "",
+  templateNaturalWidth: 0,
+  templateNaturalHeight: 0,
+  templateScale: 1,
   csvFile: null,
   csvRows: 0,
   textBoxes: [],
@@ -260,8 +263,8 @@ function buildGeneratorFormData() {
   return formData;
 }
 
-function getTemplateScaleFactor() {
-  if (!templateImage) return { scaleX: 1, scaleY: 1, scale: 1 };
+function updateTemplateMetrics() {
+  if (!templateImage?.src) return;
 
   const naturalWidth = templateImage.naturalWidth || 0;
   const naturalHeight = templateImage.naturalHeight || 0;
@@ -269,25 +272,14 @@ function getTemplateScaleFactor() {
   const displayWidth = rect.width || templateImage.clientWidth || 0;
   const displayHeight = rect.height || templateImage.clientHeight || 0;
 
-  if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) {
-    return { scaleX: 1, scaleY: 1, scale: 1 };
-  }
+  if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) return;
 
-  const scaleX = naturalWidth / displayWidth;
-  const scaleY = naturalHeight / displayHeight;
-  return { scaleX, scaleY, scale: (scaleX + scaleY) / 2 };
-}
+  state.templateNaturalWidth = naturalWidth;
+  state.templateNaturalHeight = naturalHeight;
+  state.templateScale = displayWidth / naturalWidth;
 
-function serializeTextBoxesForServer() {
-  const { scaleX, scaleY, scale } = getTemplateScaleFactor();
-  return state.textBoxes.map((box) => ({
-    ...box,
-    x: box.x * scaleX,
-    y: box.y * scaleY,
-    width: box.width * scaleX,
-    height: box.height * scaleY,
-    fontSize: box.fontSize * scale,
-  }));
+  overlay.style.width = `${displayWidth}px`;
+  overlay.style.height = `${displayHeight}px`;
 }
 
 function createCsvFileFromText(csvText) {
@@ -426,8 +418,8 @@ uploadTemplateBtn.addEventListener("click", async () => {
     clearDownloadLink(downloadSingleLink);
 
     templateImage.onload = () => {
-      overlay.style.width = `${templateImage.clientWidth}px`;
-      overlay.style.height = `${templateImage.clientHeight}px`;
+      updateTemplateMetrics();
+      renderTextBoxes();
     };
     templateImage.src = state.templateObjectUrl;
     templateImage.style.display = "block";
@@ -518,17 +510,19 @@ function applyStyleToElement(element, box) {
 }
 
 function applyBoxFrame(element, box) {
-  element.style.left = `${box.x}px`;
-  element.style.top = `${box.y}px`;
-  element.style.width = `${box.width}px`;
-  element.style.height = `${box.height}px`;
+  const scale = state.templateScale || 1;
+  element.style.left = `${box.x * scale}px`;
+  element.style.top = `${box.y * scale}px`;
+  element.style.width = `${box.width * scale}px`;
+  element.style.height = `${box.height * scale}px`;
 }
 
 function applyBoxVisuals(element, box) {
   const content = element.querySelector(".text-box-content");
   content.textContent = box.content;
   content.style.fontFamily = box.fontFamily;
-  content.style.fontSize = `${box.fontSize}px`;
+  const scale = state.templateScale || 1;
+  content.style.fontSize = `${box.fontSize * scale}px`;
   content.style.color = box.color;
   content.style.fontWeight = box.bold ? "700" : "400";
   content.style.fontStyle = box.italic ? "italic" : "normal";
@@ -580,6 +574,7 @@ function renderTextBoxes() {
       const startY = event.clientY;
       const startLeft = box.x;
       const startTop = box.y;
+      const scale = state.templateScale || 1;
       let rafId = null;
       let pendingPosition = null;
 
@@ -589,8 +584,8 @@ function renderTextBoxes() {
 
         pendingPosition = {
           // Free move: no boundary clamp, can move naturally.
-          x: startLeft + dx,
-          y: startTop + dy,
+          x: startLeft + dx / scale,
+          y: startTop + dy / scale,
         };
 
         if (rafId) return;
@@ -625,6 +620,7 @@ function renderTextBoxes() {
       const startY = event.clientY;
       const startWidth = box.width;
       const startHeight = box.height;
+      const scale = state.templateScale || 1;
       let rafId = null;
       let pendingSize = null;
 
@@ -633,8 +629,8 @@ function renderTextBoxes() {
         const dy = moveEvent.clientY - startY;
 
         pendingSize = {
-          width: Math.max(80, startWidth + dx),
-          height: Math.max(40, startHeight + dy),
+          width: Math.max(80, startWidth + dx / scale),
+          height: Math.max(40, startHeight + dy / scale),
         };
 
         if (rafId) return;
@@ -664,15 +660,33 @@ function renderTextBoxes() {
 }
 
 async function addTextBox() {
-  try {
-    const data = await postJson("/add-text-box", {});
-    state.textBoxes.push(data);
-    state.selectedBoxId = data.id;
-    renderTextBoxes();
-    syncControlPanelFromSelected();
-  } catch (error) {
-    actionStatus.textContent = error.message;
+  if (!state.templateNaturalWidth || !state.templateNaturalHeight) {
+    actionStatus.textContent = "Upload a certificate template first.";
+    return;
   }
+
+  const id = Math.random().toString(16).slice(2, 10);
+  const boxWidth = Math.round(Math.max(280, state.templateNaturalWidth * 0.28));
+  const boxHeight = 70;
+  const data = {
+    id,
+    content: "{Name}",
+    x: Math.round((state.templateNaturalWidth - boxWidth) / 2),
+    y: Math.round(state.templateNaturalHeight * 0.35),
+    width: boxWidth,
+    height: boxHeight,
+    fontFamily: "Arial",
+    fontSize: 48,
+    align: "center",
+    color: "#000000",
+    bold: false,
+    italic: false,
+  };
+
+  state.textBoxes.push(data);
+  state.selectedBoxId = data.id;
+  renderTextBoxes();
+  syncControlPanelFromSelected();
 }
 
 function removeSelectedBox() {
@@ -820,7 +834,7 @@ previewBtn.addEventListener("click", async () => {
     actionStatus.textContent = "Generating preview...";
 
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
+    formData.append("text_boxes", JSON.stringify(state.textBoxes));
     formData.append("qr", JSON.stringify(getQrPayload()));
 
     const data = await postForm("/preview", formData);
@@ -846,7 +860,7 @@ generateBtn.addEventListener("click", async () => {
     actionStatus.textContent = "Generating all certificates...";
 
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
+    formData.append("text_boxes", JSON.stringify(state.textBoxes));
     formData.append(
       "options",
       JSON.stringify({
@@ -880,7 +894,7 @@ generateSingleBtn.addEventListener("click", async () => {
 
     const rowIndex = Number(singleRowNumber.value || 1);
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
+    formData.append("text_boxes", JSON.stringify(state.textBoxes));
     formData.append("row_index", String(rowIndex));
     formData.append(
       "options",
@@ -996,7 +1010,7 @@ sendEmailBtn.addEventListener("click", async () => {
     actionStatus.textContent = "Generating certificates and sending emails...";
 
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
+    formData.append("text_boxes", JSON.stringify(state.textBoxes));
     formData.append(
       "options",
       JSON.stringify({
@@ -1038,8 +1052,8 @@ sendEmailBtn.addEventListener("click", async () => {
 // -----------------------------
 window.addEventListener("resize", () => {
   if (!templateImage.src) return;
-  overlay.style.width = `${templateImage.clientWidth}px`;
-  overlay.style.height = `${templateImage.clientHeight}px`;
+  updateTemplateMetrics();
+  renderTextBoxes();
 });
 
 canvasWrap.addEventListener("click", (event) => {
