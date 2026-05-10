@@ -11,6 +11,7 @@ import zipfile
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
+import PIL
 
 from flask import Flask, jsonify, render_template, request, send_file, send_from_directory
 from PIL import Image, ImageColor, ImageDraw, ImageFont
@@ -247,11 +248,15 @@ def resolve_font(font_name: str, font_size: int, bold: bool = False, italic: boo
 
     candidates = styled_candidates + base_candidates
 
+    pil_fonts_dir = Path(PIL.__file__).resolve().parent / "fonts"
+
     search_paths = [
         # Windows
         Path("C:/Windows/Fonts"),
         # Optional bundled fonts in repo
         BASE_DIR / "static" / "fonts",
+        # Fonts shipped with Pillow (reliable on Vercel/Linux)
+        pil_fonts_dir,
         # Common Linux locations (Vercel/containers)
         Path("/usr/share/fonts"),
         Path("/usr/share/fonts/truetype"),
