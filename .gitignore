@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.tmp/
+.venv/
+.env
+output/templates/*
+output/csv/*
+output/previews/*
+output/batches/*
+output/single/*
+output/*.zip
+!output/.gitkeep
+!output/templates/.gitkeep
+!output/csv/.gitkeep
+!output/previews/.gitkeep
+!output/batches/.gitkeep
+!output/single/.gitkeep
