@@ -260,6 +260,36 @@ function buildGeneratorFormData() {
   return formData;
 }
 
+function getTemplateScaleFactor() {
+  if (!templateImage) return { scaleX: 1, scaleY: 1, scale: 1 };
+
+  const naturalWidth = templateImage.naturalWidth || 0;
+  const naturalHeight = templateImage.naturalHeight || 0;
+  const rect = templateImage.getBoundingClientRect();
+  const displayWidth = rect.width || templateImage.clientWidth || 0;
+  const displayHeight = rect.height || templateImage.clientHeight || 0;
+
+  if (!naturalWidth || !naturalHeight || !displayWidth || !displayHeight) {
+    return { scaleX: 1, scaleY: 1, scale: 1 };
+  }
+
+  const scaleX = naturalWidth / displayWidth;
+  const scaleY = naturalHeight / displayHeight;
+  return { scaleX, scaleY, scale: (scaleX + scaleY) / 2 };
+}
+
+function serializeTextBoxesForServer() {
+  const { scaleX, scaleY, scale } = getTemplateScaleFactor();
+  return state.textBoxes.map((box) => ({
+    ...box,
+    x: box.x * scaleX,
+    y: box.y * scaleY,
+    width: box.width * scaleX,
+    height: box.height * scaleY,
+    fontSize: box.fontSize * scale,
+  }));
+}
+
 function createCsvFileFromText(csvText) {
   return new File([csvText], "pasted-data.csv", { type: "text/csv" });
 }
@@ -790,7 +820,7 @@ previewBtn.addEventListener("click", async () => {
     actionStatus.textContent = "Generating preview...";
 
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(state.textBoxes));
+    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
     formData.append("qr", JSON.stringify(getQrPayload()));
 
     const data = await postForm("/preview", formData);
@@ -816,7 +846,7 @@ generateBtn.addEventListener("click", async () => {
     actionStatus.textContent = "Generating all certificates...";
 
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(state.textBoxes));
+    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
     formData.append(
       "options",
       JSON.stringify({
@@ -850,7 +880,7 @@ generateSingleBtn.addEventListener("click", async () => {
 
     const rowIndex = Number(singleRowNumber.value || 1);
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(state.textBoxes));
+    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
     formData.append("row_index", String(rowIndex));
     formData.append(
       "options",
@@ -966,7 +996,7 @@ sendEmailBtn.addEventListener("click", async () => {
     actionStatus.textContent = "Generating certificates and sending emails...";
 
     const formData = buildGeneratorFormData();
-    formData.append("text_boxes", JSON.stringify(state.textBoxes));
+    formData.append("text_boxes", JSON.stringify(serializeTextBoxesForServer()));
     formData.append(
       "options",
       JSON.stringify({

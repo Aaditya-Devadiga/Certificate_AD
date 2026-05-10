@@ -316,9 +316,9 @@ templateImage, #templateImage { display: none; max-width: 100%; height: auto; }
 .color-swatch { width: 100%; min-height: 22px; border-radius: 6px; border: 2px solid var(--line); cursor: pointer; }
 .color-swatch.active { border-color: var(--brand); }
 
-.live-preview { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.live-preview { margin-top: 14px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; max-height: 540px; overflow: auto; }
 .live-preview h3 { margin: 0 0 8px; }
-.live-preview img { width: 100%; border-radius: 10px; border: 1px solid var(--line); }
+.live-preview img { display: block; max-width: 100%; max-height: 480px; width: auto; height: auto; margin: 0 auto; border-radius: 10px; border: 1px solid var(--line); object-fit: contain; }
 .csv-meta { margin-top: 10px; color: var(--muted); font-size: 0.88rem; }
 .hidden { display: none !important; }
 
